@@ -107,3 +107,16 @@ def test_normalize_recent_events_renames_old_availability_wording():
     assert state["recent_events"][0]["title"] == "监测任务无法连接页面"
     assert state["recent_events"][1]["kind"] == "监测任务已恢复连接页面"
     assert state["recent_events"][1]["title"] == "监测任务已恢复连接页面"
+
+
+def test_markdown_to_pushplus_html_preserves_chinese_and_line_breaks():
+    markdown = "# 测试成功\n\n最新公告名称：2026年公开招聘人才\n\n## 公告内容\n\n第一段\n第二段"
+
+    html = monitor.markdown_to_pushplus_html(markdown)
+
+    assert "<h2>测试成功</h2>" in html
+    assert "<p>最新公告名称：2026年公开招聘人才</p>" in html
+    assert "<h3>公告内容</h3>" in html
+    assert "<p>第一段</p>" in html
+    assert "<p>第二段</p>" in html
+    assert "?" not in html

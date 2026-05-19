@@ -414,15 +414,34 @@ def build_availability_markdown(event: dict) -> str:
     return "\n".join(lines)
 
 
+def markdown_to_pushplus_html(markdown_text: str) -> str:
+    blocks: List[str] = []
+    for raw_line in markdown_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            blocks.append("<br>")
+            continue
+        if line.startswith("## "):
+            blocks.append(f"<h3>{html.escape(line[3:])}</h3>")
+        elif line.startswith("# "):
+            blocks.append(f"<h2>{html.escape(line[2:])}</h2>")
+        elif line.startswith("- "):
+            blocks.append(f"<p>• {html.escape(line[2:])}</p>")
+        else:
+            blocks.append(f"<p>{html.escape(line)}</p>")
+    return "\n".join(blocks)
+
+
 def send_pushplus(title: str, content: str) -> None:
     token = os.getenv("PUSHPLUS_TOKEN")
     if not token:
         print("PUSHPLUS_TOKEN not set; skip PushPlus.")
         return
     try:
+        html_content = markdown_to_pushplus_html(content)
         resp = requests.post(
             "https://www.pushplus.plus/send",
-            json={"token": token, "title": title, "content": content, "template": "markdown"},
+            json={"token": token, "title": title, "content": html_content, "template": "html"},
             timeout=20,
         )
         print("PushPlus response:", resp.status_code, resp.text[:200])
