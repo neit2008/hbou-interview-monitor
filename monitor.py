@@ -54,6 +54,7 @@ def load_state() -> dict:
             "last_run_at": None,
             "seen_notice_ids": [],
             "seen_name_hit_ids": [],
+            "page_availability": {},
             "recent_events": [],
         }
     with STATE_PATH.open("r", encoding="utf-8") as f:
@@ -252,12 +253,82 @@ def build_markdown(title: str, items: List[dict], kind: str) -> str:
     for item in items[:10]:
         lines.append(f"## {item.get('title', '未命名')}")
         lines.append(f"- 链接：{item.get('url')}")
-        if kind == "name":
+        if kind == "detail":
+            lines.append(f"- 命中关键词：{'、'.join(item.get('matched_keywords', []))}")
+            lines.append("")
+            lines.append(item.get("content", ""))
+        elif kind == "name":
             lines.append(f"- 命中姓名：{item.get('name')}")
             lines.append(f"- 摘要：{item.get('excerpt', '')}")
         else:
             lines.append(f"- 关键词：{'、'.join(item.get('matched_keywords', []))}")
         lines.append("")
+    return "\n".join(lines)
+
+
+def limit_text(text: str, max_chars: int = 3500) -> str:
+    text = clean_text(text)
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars].rstrip() + "\n\n（内容较长，已截断；请打开原文链接查看全文。）"
+
+
+def build_notice_detail_hits(new_notices: List[dict], pages: Dict[str, FetchedPage], keywords: Iterable[str]) -> List[dict]:
+    hits: List[dict] = []
+    keyword_list = [k for k in keywords if k]
+    for notice in new_notices:
+        url = notice.get("url", "")
+        page = pages.get(url)
+        if not page or not page.ok:
+            continue
+        combined = f"{notice.get('title', '')} {page.title} {page.text}"
+        matched = [k for k in keyword_list if k in combined]
+        if not matched:
+            continue
+        hits.append({
+            "id": f"{notice.get('id', make_id(url))}:{'|'.join(matched)}",
+            "title": notice.get("title") or page.title or url,
+            "url": url,
+            "matched_keywords": matched,
+            "content": limit_text(page.text),
+        })
+    return hits
+
+
+def detect_availability_changes(state: dict, pages: Dict[str, FetchedPage], start_urls: Iterable[str]) -> List[dict]:
+    availability = state.setdefault("page_availability", {})
+    events: List[dict] = []
+    for url in start_urls:
+        page = pages.get(url)
+        ok = bool(page and page.ok)
+        previous = availability.get(url)
+        if ok:
+            if previous == "down":
+                events.append({"kind": "recovered", "title": "监测页面已恢复打开", "url": url})
+            availability[url] = "ok"
+            continue
+
+        error = page.error if page else "页面未抓取"
+        if previous != "down":
+            events.append({"kind": "down", "title": "监测页面无法打开", "url": url, "error": error})
+        availability[url] = "down"
+    return events
+
+
+def build_availability_markdown(event: dict) -> str:
+    lines = [
+        f"# {event['title']}",
+        "",
+        f"检查时间：{now_cn()}",
+        f"- 链接：{event.get('url')}",
+    ]
+    if event.get("kind") == "down":
+        lines.append(f"- 错误：{event.get('error', '')}")
+        lines.append("")
+        lines.append("后续定时监测会继续检查；页面恢复可打开时会再推送一次。")
+    else:
+        lines.append("")
+        lines.append("页面已从不可打开状态恢复。")
     return "\n".join(lines)
 
 
@@ -402,6 +473,8 @@ def main() -> None:
 
     pages, notices, name_hits = crawl(config)
 
+    start_urls = [normalize_url(u) for u in config["monitor"]["start_urls"]]
+    availability_events = detect_availability_changes(state, pages, start_urls)
     notify_first = bool(config["monitor"].get("notify_new_notices_on_first_run", False))
     new_notices = [n for n in notices if n["id"] not in seen_notice_ids]
     new_name_hits = [h for h in name_hits if h["id"] not in seen_name_hit_ids]
@@ -409,16 +482,27 @@ def main() -> None:
     # 第一次运行只建立历史基线，不把历史通知都当新增推送；但姓名命中仍会推送。
     push_notices = new_notices if (notify_first or not first_run) else []
     push_name_hits = new_name_hits
+    content_keywords = config["monitor"].get("content_keywords") or config["monitor"].get("name_keywords", [])
+    push_notice_detail_hits = build_notice_detail_hits(push_notices, pages, content_keywords)
 
+    for event in availability_events:
+        notify(config, f"【网页监测】{event['title']}", build_availability_markdown(event))
     if push_notices:
         content = build_markdown("发现新的面试/招聘相关通知", push_notices, kind="notice")
         notify(config, "【网页监测】发现新的面试/招聘相关通知", content)
+    if push_notice_detail_hits:
+        content = build_markdown("新增公告命中重点关键词", push_notice_detail_hits, kind="detail")
+        notify(config, "【重要】新增公告命中重点关键词", content)
     if push_name_hits:
         content = build_markdown("面试/招聘相关页面命中姓名", push_name_hits, kind="name")
         notify(config, "【重要】页面中检索到目标姓名", content)
 
+    for event in availability_events:
+        state.setdefault("recent_events", []).insert(0, event_record(event["title"], event["title"], event["url"], {"error": event.get("error", "")}))
     for n in push_notices:
         state.setdefault("recent_events", []).insert(0, event_record("新增通知", n["title"], n["url"]))
+    for h in push_notice_detail_hits:
+        state.setdefault("recent_events", []).insert(0, event_record("重点关键词命中", h["title"], h["url"], {"name": "、".join(h.get("matched_keywords", []))}))
     for h in push_name_hits:
         state.setdefault("recent_events", []).insert(0, event_record("姓名命中", h["title"], h["url"], {"name": h["name"], "excerpt": h.get("excerpt", "")}))
 
@@ -432,7 +516,7 @@ def main() -> None:
 
     print(f"Run at {state['last_run_at']}")
     print(f"Fetched pages: {len(pages)}; candidates: {len(notices)}; name hits: {len(name_hits)}")
-    print(f"New notices pushed: {len(push_notices)}; new name hits pushed: {len(push_name_hits)}")
+    print(f"New notices pushed: {len(push_notices)}; detail hits pushed: {len(push_notice_detail_hits)}; new name hits pushed: {len(push_name_hits)}")
 
 
 if __name__ == "__main__":

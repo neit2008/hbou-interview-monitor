@@ -27,6 +27,11 @@ monitor:
   name_keywords:
     - "刘国栋"
 
+  # 新增公告正文命中这些关键词时，会把公告正文一起推送到微信。
+  content_keywords:
+    - "人工智能D岗"
+    - "刘国栋"
+
   # 第一次运行时是否把历史上的所有匹配通知都推送出来。
   # 建议保持 false：第一次只建立基线；但姓名命中仍会单独推送。
   notify_new_notices_on_first_run: false
