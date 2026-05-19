@@ -1,5 +1,5 @@
 {
-  "last_run_at": "2026-05-19 16:50:45 Asia/Shanghai",
+  "last_run_at": "2026-05-19 17:23:55 Asia/Shanghai",
   "fetched_pages": 1,
   "candidate_notices": 0,
   "name_hits_total": 0,
@@ -8,7 +8,7 @@
   "failed_pages": [
     {
       "url": "https://rsc.hbou.edu.cn/index.htm",
-      "error": "ConnectTimeout(MaxRetryError(\"HTTPSConnectionPool(host='rsc.hbou.edu.cn', port=443): Max retries exceeded with url: /index.htm (Caused by ConnectTimeoutError(<HTTPSConnection(host='rsc.hbou.edu.cn', port=443) at 0x7f392c8c77d0>, 'Connection to rsc.hbou.edu.cn timed out. (connect timeout=20)'))\"))"
+      "error": "ConnectTimeout(MaxRetryError(\"HTTPSConnectionPool(host='rsc.hbou.edu.cn', port=443): Max retries exceeded with url: /index.htm (Caused by ConnectTimeoutError(<HTTPSConnection(host='rsc.hbou.edu.cn', port=443) at 0x7f9bc8f81690>, 'Connection to rsc.hbou.edu.cn timed out. (connect timeout=45)'))\"))（已重试 3 次）"
     }
   ],
   "recent_events": [
