@@ -1,5 +1,5 @@
 {
-  "last_run_at": "2026-05-19 17:23:55 Asia/Shanghai",
+  "last_run_at": "2026-05-19 17:30:16 Asia/Shanghai",
   "fetched_pages": 1,
   "candidate_notices": 0,
   "name_hits_total": 0,
@@ -8,14 +8,14 @@
   "failed_pages": [
     {
       "url": "https://rsc.hbou.edu.cn/index.htm",
-      "error": "ConnectTimeout(MaxRetryError(\"HTTPSConnectionPool(host='rsc.hbou.edu.cn', port=443): Max retries exceeded with url: /index.htm (Caused by ConnectTimeoutError(<HTTPSConnection(host='rsc.hbou.edu.cn', port=443) at 0x7f9bc8f81690>, 'Connection to rsc.hbou.edu.cn timed out. (connect timeout=45)'))\"))（已重试 3 次）"
+      "error": "ConnectTimeout(MaxRetryError(\"HTTPSConnectionPool(host='rsc.hbou.edu.cn', port=443): Max retries exceeded with url: /index.htm (Caused by ConnectTimeoutError(<HTTPSConnection(host='rsc.hbou.edu.cn', port=443) at 0x7fa99a3b83d0>, 'Connection to rsc.hbou.edu.cn timed out. (connect timeout=45)'))\"))（已重试 3 次）"
     }
   ],
   "recent_events": [
     {
       "time": "2026-05-19 16:50:45 Asia/Shanghai",
-      "kind": "监测页面无法打开",
-      "title": "监测页面无法打开",
+      "kind": "监测任务无法连接页面",
+      "title": "监测任务无法连接页面",
       "url": "https://rsc.hbou.edu.cn/index.htm",
       "error": "ConnectTimeout(MaxRetryError(\"HTTPSConnectionPool(host='rsc.hbou.edu.cn', port=443): Max retries exceeded with url: /index.htm (Caused by ConnectTimeoutError(<HTTPSConnection(host='rsc.hbou.edu.cn', port=443) at 0x7f392c8c77d0>, 'Connection to rsc.hbou.edu.cn timed out. (connect timeout=20)'))\"))"
     }
