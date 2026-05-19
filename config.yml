@@ -6,7 +6,9 @@ monitor:
     - "rsc.hbou.edu.cn"
   max_depth: 2
   max_pages: 80
-  request_timeout_seconds: 20
+  request_timeout_seconds: 45
+  request_retries: 3
+  request_retry_delay_seconds: 5
   user_agent: "Mozilla/5.0 (compatible; personal-notice-monitor/1.0; +https://github.com/)"
 
   # 用于判断“可能是面试/招聘相关通知”的关键词。

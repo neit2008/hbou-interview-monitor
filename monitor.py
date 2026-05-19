@@ -97,40 +97,46 @@ def extract_title(soup: BeautifulSoup, fallback_url: str) -> str:
     return fallback_url
 
 
-def fetch_page(url: str, timeout: int, user_agent: str) -> FetchedPage:
+def fetch_page(url: str, timeout: int, user_agent: str, retries: int = 1, retry_delay: float = 0.0) -> FetchedPage:
     headers = {
         "User-Agent": user_agent,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.7",
         "Cache-Control": "no-cache",
     }
-    try:
-        r = requests.get(url, timeout=timeout, headers=headers, allow_redirects=True)
-        r.raise_for_status()
-        if not r.encoding or r.encoding.lower() in {"iso-8859-1", "ascii"}:
-            r.encoding = r.apparent_encoding
-        content_type = r.headers.get("content-type", "")
-        if "text/html" not in content_type and "application/xhtml" not in content_type and "" != content_type:
-            return FetchedPage(url=url, title=url, text="", links=[], ok=False, error=f"非HTML页面：{content_type}")
-        soup = BeautifulSoup(r.text, "html.parser")
-        for tag in soup(["script", "style", "noscript"]):
-            tag.decompose()
-        title = extract_title(soup, url)
-        text = clean_text(soup.get_text(" "))
-        links: List[Tuple[str, str]] = []
-        for a in soup.find_all("a"):
-            href = a.get("href")
-            if not href:
-                continue
-            href = href.strip()
-            if href.startswith(("javascript:", "mailto:", "tel:")):
-                continue
-            link_url = normalize_url(urljoin(r.url, href))
-            label = clean_text(a.get_text(" ")) or link_url
-            links.append((label[:160], link_url))
-        return FetchedPage(url=normalize_url(r.url), title=title, text=text, links=links, ok=True)
-    except Exception as e:
-        return FetchedPage(url=url, title=url, text="", links=[], ok=False, error=repr(e))
+    attempts = max(1, int(retries))
+    last_error = ""
+    for attempt in range(1, attempts + 1):
+        try:
+            r = requests.get(url, timeout=timeout, headers=headers, allow_redirects=True)
+            r.raise_for_status()
+            if not r.encoding or r.encoding.lower() in {"iso-8859-1", "ascii"}:
+                r.encoding = r.apparent_encoding
+            content_type = r.headers.get("content-type", "")
+            if "text/html" not in content_type and "application/xhtml" not in content_type and "" != content_type:
+                return FetchedPage(url=url, title=url, text="", links=[], ok=False, error=f"非HTML页面：{content_type}")
+            soup = BeautifulSoup(r.text, "html.parser")
+            for tag in soup(["script", "style", "noscript"]):
+                tag.decompose()
+            title = extract_title(soup, url)
+            text = clean_text(soup.get_text(" "))
+            links: List[Tuple[str, str]] = []
+            for a in soup.find_all("a"):
+                href = a.get("href")
+                if not href:
+                    continue
+                href = href.strip()
+                if href.startswith(("javascript:", "mailto:", "tel:")):
+                    continue
+                link_url = normalize_url(urljoin(r.url, href))
+                label = clean_text(a.get_text(" ")) or link_url
+                links.append((label[:160], link_url))
+            return FetchedPage(url=normalize_url(r.url), title=title, text=text, links=links, ok=True)
+        except Exception as e:
+            last_error = repr(e)
+            if attempt < attempts and retry_delay > 0:
+                time.sleep(retry_delay)
+    return FetchedPage(url=url, title=url, text="", links=[], ok=False, error=f"{last_error}（已重试 {attempts} 次）")
 
 
 def contains_any(text: str, keywords: Iterable[str]) -> bool:
@@ -155,6 +161,8 @@ def crawl(config: dict) -> Tuple[Dict[str, FetchedPage], List[dict], List[dict]]
     max_depth = int(mcfg.get("max_depth", 2))
     max_pages = int(mcfg.get("max_pages", 80))
     timeout = int(mcfg.get("request_timeout_seconds", 20))
+    retries = int(mcfg.get("request_retries", 1))
+    retry_delay = float(mcfg.get("request_retry_delay_seconds", 0.0))
     user_agent = mcfg.get("user_agent", "Mozilla/5.0 notice-monitor")
     polite_delay = float(mcfg.get("polite_delay_seconds", 0.3))
 
@@ -165,7 +173,7 @@ def crawl(config: dict) -> Tuple[Dict[str, FetchedPage], List[dict], List[dict]]
 
     while q and len(pages) < max_pages:
         url, depth, source_label = q.popleft()
-        page = fetch_page(url, timeout=timeout, user_agent=user_agent)
+        page = fetch_page(url, timeout=timeout, user_agent=user_agent, retries=retries, retry_delay=retry_delay)
         pages[url] = page
         time.sleep(polite_delay)
 
@@ -206,7 +214,7 @@ def crawl(config: dict) -> Tuple[Dict[str, FetchedPage], List[dict], List[dict]]
     # 补抓候选公告页面，保证能查正文里的姓名。
     for url in list(candidates.keys()):
         if url not in pages and len(pages) < max_pages:
-            page = fetch_page(url, timeout=timeout, user_agent=user_agent)
+            page = fetch_page(url, timeout=timeout, user_agent=user_agent, retries=retries, retry_delay=retry_delay)
             pages[url] = page
             time.sleep(polite_delay)
 
@@ -304,13 +312,13 @@ def detect_availability_changes(state: dict, pages: Dict[str, FetchedPage], star
         previous = availability.get(url)
         if ok:
             if previous == "down":
-                events.append({"kind": "recovered", "title": "监测页面已恢复打开", "url": url})
+                events.append({"kind": "recovered", "title": "监测任务已恢复连接页面", "url": url})
             availability[url] = "ok"
             continue
 
         error = page.error if page else "页面未抓取"
         if previous != "down":
-            events.append({"kind": "down", "title": "监测页面无法打开", "url": url, "error": error})
+            events.append({"kind": "down", "title": "监测任务无法连接页面", "url": url, "error": error})
         availability[url] = "down"
     return events
 
@@ -325,10 +333,10 @@ def build_availability_markdown(event: dict) -> str:
     if event.get("kind") == "down":
         lines.append(f"- 错误：{event.get('error', '')}")
         lines.append("")
-        lines.append("后续定时监测会继续检查；页面恢复可打开时会再推送一次。")
+        lines.append("这表示 GitHub Actions 本次无法连接学校站点，不一定代表你本机浏览器也打不开。后续定时监测会继续检查；连接恢复时会再推送一次。")
     else:
         lines.append("")
-        lines.append("页面已从不可打开状态恢复。")
+        lines.append("GitHub Actions 已从无法连接状态恢复，可以继续抓取页面。")
     return "\n".join(lines)
 
 
