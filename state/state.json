@@ -1,7 +1,18 @@
 {
   "created_at": "2026-05-19 16:29:28 Asia/Shanghai",
-  "last_run_at": "2026-05-19 16:29:48 Asia/Shanghai",
+  "last_run_at": "2026-05-19 16:50:45 Asia/Shanghai",
   "seen_notice_ids": [],
   "seen_name_hit_ids": [],
-  "recent_events": []
+  "recent_events": [
+    {
+      "time": "2026-05-19 16:50:45 Asia/Shanghai",
+      "kind": "监测页面无法打开",
+      "title": "监测页面无法打开",
+      "url": "https://rsc.hbou.edu.cn/index.htm",
+      "error": "ConnectTimeout(MaxRetryError(\"HTTPSConnectionPool(host='rsc.hbou.edu.cn', port=443): Max retries exceeded with url: /index.htm (Caused by ConnectTimeoutError(<HTTPSConnection(host='rsc.hbou.edu.cn', port=443) at 0x7f392c8c77d0>, 'Connection to rsc.hbou.edu.cn timed out. (connect timeout=20)'))\"))"
+    }
+  ],
+  "page_availability": {
+    "https://rsc.hbou.edu.cn/index.htm": "down"
+  }
 }
