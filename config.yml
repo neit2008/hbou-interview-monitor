@@ -1,0 +1,42 @@
+# 湖北开放大学/湖北科技职业学院人事处网页监测配置
+monitor:
+  start_urls:
+    - "https://rsc.hbou.edu.cn/index.htm"
+  allowed_domains:
+    - "rsc.hbou.edu.cn"
+  max_depth: 2
+  max_pages: 80
+  request_timeout_seconds: 20
+  user_agent: "Mozilla/5.0 (compatible; personal-notice-monitor/1.0; +https://github.com/)"
+
+  # 用于判断“可能是面试/招聘相关通知”的关键词。
+  notice_keywords:
+    - "面试"
+    - "试讲"
+    - "资格复审"
+    - "公开招聘"
+    - "专项公开招聘"
+    - "人才引进"
+    - "招聘"
+    - "考核"
+    - "通知"
+    - "公告"
+    - "公示"
+
+  # 重点检索姓名。可增加多个姓名。
+  name_keywords:
+    - "刘国栋"
+
+  # 第一次运行时是否把历史上的所有匹配通知都推送出来。
+  # 建议保持 false：第一次只建立基线；但姓名命中仍会单独推送。
+  notify_new_notices_on_first_run: false
+
+  # 页面友好抓取：每次请求之间稍微停顿，避免对学校网站造成压力。
+  polite_delay_seconds: 0.3
+
+push:
+  # 微信推送：在 GitHub Secrets 中设置 PUSHPLUS_TOKEN 后自动启用。
+  pushplus_enabled: true
+
+  # 邮件推送：设置 SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/MAIL_TO 后自动启用。
+  email_enabled: false
