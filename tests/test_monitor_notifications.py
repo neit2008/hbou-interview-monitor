@@ -1,46 +1,4 @@
-import sys
-import types
-
-bs4_stub = types.ModuleType("bs4")
-bs4_stub.BeautifulSoup = object
-sys.modules.setdefault("bs4", bs4_stub)
-
 import monitor
-
-
-class FakeTag:
-    def __init__(self, text="", href=None):
-        self._text = text
-        self._href = href
-
-    def get_text(self, _separator=" "):
-        return self._text
-
-    def get(self, name):
-        if name == "href":
-            return self._href
-        return None
-
-
-class FakeSoup:
-    def __init__(self, text, *_args):
-        self.text = text
-
-    def __call__(self, _selectors):
-        return []
-
-    def select_one(self, selector):
-        if selector == "title":
-            return FakeTag("首页可访问")
-        return None
-
-    def get_text(self, _separator=" "):
-        return "首页可访问 通知公告"
-
-    def find_all(self, tag_name):
-        if tag_name == "a":
-            return [FakeTag("通知公告", "tzgg.htm")]
-        return []
 
 
 class FakeResponse:
@@ -64,7 +22,6 @@ def test_fetch_page_retries_transient_connect_timeout(monkeypatch):
         return FakeResponse()
 
     monkeypatch.setattr(monitor.requests, "get", fake_get)
-    monkeypatch.setattr(monitor, "BeautifulSoup", FakeSoup)
 
     page = monitor.fetch_page(
         "https://example.test/index.htm",

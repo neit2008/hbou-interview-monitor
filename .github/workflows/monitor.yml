@@ -1,9 +1,8 @@
 name: Monitor HBOU interview notice
 
 on:
-  # GitHub Actions 最短支持 5 分钟级别。这里设为每 10 分钟一次，并避开整点高峰。
-  schedule:
-    - cron: "7-59/10 * * * *"
+  # Local monitoring is now handled by Windows Task Scheduler.
+  # Keep this only for manual remote diagnostics.
   workflow_dispatch:
 
 permissions:

@@ -10,13 +10,13 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse, urldefrag
 
 import requests
 import yaml
-from bs4 import BeautifulSoup
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config.yml"
@@ -36,6 +36,72 @@ class FetchedPage:
     links: List[Tuple[str, str]]
     ok: bool
     error: Optional[str] = None
+
+
+class PageHTMLParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.text_chunks: List[str] = []
+        self.links: List[Tuple[str, str]] = []
+        self.title_candidates: Dict[str, List[str]] = {"h1": [], "h2": [], "class_title": [], "title": []}
+        self._skip_depth = 0
+        self._current_link_href: Optional[str] = None
+        self._current_link_text: List[str] = []
+        self._capture_title_kind: Optional[str] = None
+        self._capture_title_end_tag: Optional[str] = None
+        self._capture_title_text: List[str] = []
+
+    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+        tag = tag.lower()
+        attr_dict = {name.lower(): value or "" for name, value in attrs}
+        if tag in {"script", "style", "noscript"}:
+            self._skip_depth += 1
+            return
+        if self._skip_depth:
+            return
+        if tag == "a":
+            self._current_link_href = attr_dict.get("href")
+            self._current_link_text = []
+        if self._capture_title_kind is None:
+            class_names = set(attr_dict.get("class", "").split())
+            if tag in {"h1", "h2", "title"}:
+                self._capture_title_kind = tag
+                self._capture_title_end_tag = tag
+                self._capture_title_text = []
+            elif "title" in class_names:
+                self._capture_title_kind = "class_title"
+                self._capture_title_end_tag = tag
+                self._capture_title_text = []
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag in {"script", "style", "noscript"} and self._skip_depth:
+            self._skip_depth -= 1
+            return
+        if self._skip_depth:
+            return
+        if tag == "a" and self._current_link_href is not None:
+            label = clean_text(" ".join(self._current_link_text))
+            self.links.append((label, self._current_link_href))
+            self._current_link_href = None
+            self._current_link_text = []
+        if self._capture_title_kind and tag == self._capture_title_end_tag:
+            value = clean_text(" ".join(self._capture_title_text))
+            if value:
+                self.title_candidates[self._capture_title_kind].append(value[:160])
+            self._capture_title_kind = None
+            self._capture_title_end_tag = None
+            self._capture_title_text = []
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth:
+            return
+        if data:
+            self.text_chunks.append(data)
+            if self._current_link_href is not None:
+                self._current_link_text.append(data)
+            if self._capture_title_kind is not None:
+                self._capture_title_text.append(data)
 
 
 def now_cn() -> str:
@@ -99,13 +165,11 @@ def make_id(*parts: str) -> str:
     return hashlib.sha256(raw.encode("utf-8", errors="ignore")).hexdigest()[:24]
 
 
-def extract_title(soup: BeautifulSoup, fallback_url: str) -> str:
-    for selector in ["h1", "h2", ".title", "title"]:
-        tag = soup.select_one(selector)
-        if tag:
-            value = clean_text(tag.get_text(" "))
-            if value:
-                return value[:160]
+def extract_title(parser: PageHTMLParser, fallback_url: str) -> str:
+    for kind in ["h1", "h2", "class_title", "title"]:
+        values = parser.title_candidates.get(kind, [])
+        if values:
+            return values[0][:160]
     return fallback_url
 
 
@@ -127,21 +191,19 @@ def fetch_page(url: str, timeout: int, user_agent: str, retries: int = 1, retry_
             content_type = r.headers.get("content-type", "")
             if "text/html" not in content_type and "application/xhtml" not in content_type and "" != content_type:
                 return FetchedPage(url=url, title=url, text="", links=[], ok=False, error=f"非HTML页面：{content_type}")
-            soup = BeautifulSoup(r.text, "html.parser")
-            for tag in soup(["script", "style", "noscript"]):
-                tag.decompose()
-            title = extract_title(soup, url)
-            text = clean_text(soup.get_text(" "))
+            parser = PageHTMLParser()
+            parser.feed(r.text)
+            title = extract_title(parser, url)
+            text = clean_text(" ".join(parser.text_chunks))
             links: List[Tuple[str, str]] = []
-            for a in soup.find_all("a"):
-                href = a.get("href")
+            for label, href in parser.links:
                 if not href:
                     continue
                 href = href.strip()
                 if href.startswith(("javascript:", "mailto:", "tel:")):
                     continue
                 link_url = normalize_url(urljoin(r.url, href))
-                label = clean_text(a.get_text(" ")) or link_url
+                label = clean_text(label) or link_url
                 links.append((label[:160], link_url))
             return FetchedPage(url=normalize_url(r.url), title=title, text=text, links=links, ok=True)
         except Exception as e:
