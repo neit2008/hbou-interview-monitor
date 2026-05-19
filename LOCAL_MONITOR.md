@@ -12,6 +12,18 @@
 
 ## 常用命令
 
+双击 `monitor-switch.cmd` 可以打开菜单，查看状态、启动、停止、重启或立即运行一次。
+
+也可以用命令行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\monitor-switch.ps1 -Action status
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\monitor-switch.ps1 -Action start
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\monitor-switch.ps1 -Action stop
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\monitor-switch.ps1 -Action restart
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\monitor-switch.ps1 -Action run-once
+```
+
 安装或更新本机计划任务：
 
 ```powershell
