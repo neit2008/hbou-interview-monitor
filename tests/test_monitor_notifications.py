@@ -134,3 +134,19 @@ def test_detect_availability_changes_pushes_first_down_and_recovery_once():
     assert repeat_down == []
     assert recovered == [{"kind": "recovered", "title": "监测任务已恢复连接页面", "url": url}]
     assert repeat_ok == []
+
+
+def test_normalize_recent_events_renames_old_availability_wording():
+    state = {
+        "recent_events": [
+            {"kind": "监测页面无法打开", "title": "监测页面无法打开", "url": "https://example.test"},
+            {"kind": "监测页面已恢复打开", "title": "监测页面已恢复打开", "url": "https://example.test"},
+        ]
+    }
+
+    monitor.normalize_recent_events(state)
+
+    assert state["recent_events"][0]["kind"] == "监测任务无法连接页面"
+    assert state["recent_events"][0]["title"] == "监测任务无法连接页面"
+    assert state["recent_events"][1]["kind"] == "监测任务已恢复连接页面"
+    assert state["recent_events"][1]["title"] == "监测任务已恢复连接页面"

@@ -67,6 +67,18 @@ def save_state(state: dict) -> None:
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
+def normalize_recent_events(state: dict) -> None:
+    replacements = {
+        "监测页面无法打开": "监测任务无法连接页面",
+        "监测页面已恢复打开": "监测任务已恢复连接页面",
+    }
+    for event in state.get("recent_events", []):
+        if event.get("kind") in replacements:
+            event["kind"] = replacements[event["kind"]]
+        if event.get("title") in replacements:
+            event["title"] = replacements[event["title"]]
+
+
 def normalize_url(url: str) -> str:
     url, _frag = urldefrag(url)
     return url.strip()
@@ -475,6 +487,7 @@ def write_status_page(state: dict, pages: Dict[str, FetchedPage], notices: List[
 def main() -> None:
     config = load_config()
     state = load_state()
+    normalize_recent_events(state)
     first_run = not bool(state.get("last_run_at"))
     seen_notice_ids: Set[str] = set(state.get("seen_notice_ids", []))
     seen_name_hit_ids: Set[str] = set(state.get("seen_name_hit_ids", []))
